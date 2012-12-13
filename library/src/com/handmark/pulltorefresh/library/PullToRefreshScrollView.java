@@ -25,8 +25,20 @@ import android.widget.ScrollView;
 
 public class PullToRefreshScrollView extends PullToRefreshBase<ScrollView> {
 
+	public PullToRefreshScrollView(Context context) {
+		super(context);
+	}
+
 	public PullToRefreshScrollView(Context context, AttributeSet attrs) {
 		super(context, attrs);
+	}
+
+	public PullToRefreshScrollView(Context context, Mode mode) {
+		super(context, mode);
+	}
+
+	public PullToRefreshScrollView(Context context, Mode mode, AnimationStyle style) {
+		super(context, mode, style);
 	}
 
 	@Override

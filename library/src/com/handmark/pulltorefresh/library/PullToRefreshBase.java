@@ -96,8 +96,6 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	private int mHeaderDimension;
 	private int mFooterDimension;
 
-	private boolean mDispatchingToView;
-
 	private OnRefreshListener<T> mOnRefreshListener;
 	private OnRefreshListener2<T> mOnRefreshListener2;
 	private OnPullEventListener<T> mOnPullEventListener;
@@ -316,7 +314,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 				if (mIsBeingDragged) {
 					mLastMotionY = event.getY();
 					mLastMotionX = event.getX();
-					pullEvent(event);
+					pullEvent();
 					return true;
 				}
 				break;
@@ -600,7 +598,6 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	 */
 	void onReset() {
 		mIsBeingDragged = false;
-		mDispatchingToView = false;
 
 		// Always reset both layouts, just in case...
 		mHeaderLayout.reset();
@@ -1001,7 +998,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	 * @return true if the Event has been handled, false if there has been no
 	 *         change
 	 */
-	private void pullEvent(MotionEvent ev) {
+	private void pullEvent() {
 		final int newScrollValue;
 		final int itemDimension;
 		final float initialMotionValue, lastMotionValue;
@@ -1018,60 +1015,37 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 				break;
 		}
 
-		if (mCurrentMode.shouldDispatchToRefreshableView(initialMotionValue, lastMotionValue)) {
-			if (!mDispatchingToView) {
-				if (DEBUG) {
-					Log.d(LOG_TAG, "Dispatching Touch Event to Refreshable View");
-				}
-				ev = MotionEvent.obtain(ev);
-				ev.setAction(MotionEvent.ACTION_DOWN);
-				mDispatchingToView = true;
-
-				/**
-				 * TODO Could probably do something here so that RefreshableView
-				 * think it's already scrolling. e.g. Dispatch some fake touch
-				 * events simulating a scroll > touch slop.
-				 */
-			}
-			mRefreshableView.dispatchTouchEvent(ev);
-
-		} else {
-			mDispatchingToView = false;
-
-			switch (mCurrentMode) {
-				case PULL_FROM_END:
-					newScrollValue = Math.round(Math.max(initialMotionValue - lastMotionValue, 0) / FRICTION);
-					itemDimension = mFooterDimension;
-					break;
-				case PULL_FROM_START:
-				default:
-					newScrollValue = Math.round(Math.min(initialMotionValue - lastMotionValue, 0) / FRICTION);
-					itemDimension = mHeaderDimension;
-					break;
-			}
-
-			setHeaderScroll(newScrollValue);
-
-			if (newScrollValue != 0) {
-				float scale = Math.abs(newScrollValue) / (float) itemDimension;
-				switch (mCurrentMode) {
-					case PULL_FROM_END:
-						mFooterLayout.onPull(scale);
-						break;
-					case PULL_FROM_START:
-						mHeaderLayout.onPull(scale);
-						break;
-				}
-
-				if (mState != State.PULL_TO_REFRESH && itemDimension >= Math.abs(newScrollValue)) {
-					setState(State.PULL_TO_REFRESH);
-				} else if (mState == State.PULL_TO_REFRESH && itemDimension < Math.abs(newScrollValue)) {
-					setState(State.RELEASE_TO_REFRESH);
-
-				}
-			}
+		switch (mCurrentMode) {
+			case PULL_FROM_END:
+				newScrollValue = Math.round(Math.max(initialMotionValue - lastMotionValue, 0) / FRICTION);
+				itemDimension = mFooterDimension;
+				break;
+			case PULL_FROM_START:
+			default:
+				newScrollValue = Math.round(Math.min(initialMotionValue - lastMotionValue, 0) / FRICTION);
+				itemDimension = mHeaderDimension;
+				break;
 		}
 
+		setHeaderScroll(newScrollValue);
+
+		if (newScrollValue != 0) {
+			float scale = Math.abs(newScrollValue) / (float) itemDimension;
+			switch (mCurrentMode) {
+				case PULL_FROM_END:
+					mFooterLayout.onPull(scale);
+					break;
+				case PULL_FROM_START:
+					mHeaderLayout.onPull(scale);
+					break;
+			}
+
+			if (mState != State.PULL_TO_REFRESH && itemDimension >= Math.abs(newScrollValue)) {
+				setState(State.PULL_TO_REFRESH);
+			} else if (mState == State.PULL_TO_REFRESH && itemDimension < Math.abs(newScrollValue)) {
+				setState(State.RELEASE_TO_REFRESH);
+			}
+		}
 	}
 
 	/**
@@ -1315,16 +1289,6 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 		// The modeInt values need to match those from attrs.xml
 		Mode(int modeInt) {
 			mIntValue = modeInt;
-		}
-
-		boolean shouldDispatchToRefreshableView(final float initialValue, final float lastValue) {
-			switch (this) {
-				case PULL_FROM_END:
-					return initialValue < lastValue;
-				case PULL_FROM_START:
-				default:
-					return initialValue > lastValue;
-			}
 		}
 
 		/**
